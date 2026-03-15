@@ -33,6 +33,12 @@ InstaEDA is a LangChain-powered agent that autonomously runs Exploratory Data An
 ```
 insta-eda/
 ├── app.py                      # Streamlit UI (entry point)
+├── ui/                         # Modularized UI components
+│   ├── account_tab.py          # Account management UI
+│   ├── run_tab.py              # Main analysis & file upload UI
+│   ├── settings_tab.py         # API key & model selection UI
+│   ├── sidebar.py              # Authentication & history sidebar
+│   └── visuals.py              # Plotly chart generation
 ├── agent/
 │   ├── config.py               # AI instructions & prompt templates
 │   ├── eda_agent.py            # LangChain executor & result parser
