@@ -57,8 +57,24 @@ with tab_settings:
         placeholder="AIza...",
         help="Your key is never stored or logged. Get one at aistudio.google.com",
     )
+    
+    model_name = st.selectbox(
+        "Gemini Model Selection",
+        options=[
+            "gemini-3.1-pro",
+            "gemini-3.1-flash-lite",
+            "gemini-3-flash",
+            "gemini-2.5-pro",
+            "gemini-2.5-flash",
+            "gemini-1.5-flash",
+            "gemini-1.5-pro",
+        ],
+        index=4,  # default to gemini-2.5-flash
+        help="Choose the model that powers the analysis. Pro models are more capable, Flash models are faster.",
+    )
+    
     st.divider()
-    st.markdown("**Model:** `gemini-1.5-flash` (Optimized for speed and accuracy)")
+    st.markdown(f"**Current Model:** `{model_name}`")
     st.markdown("**Tools:** 7 automated EDA tools")
     st.markdown("**Output:** Markdown report with ML recommendations")
 
@@ -94,8 +110,8 @@ with tab_run:
                 else:
                     with st.spinner("Agent is analyzing your dataset... this may take 30–60 seconds."):
                         try:
-                            # Pass api_key to the agent
-                            report_md = run_eda(df, api_key=api_key)
+                            # Pass api_key and model_name to the agent
+                            report_md = run_eda(df, api_key=api_key, model_name=model_name)
                             report_md = inject_metadata(
                                 report_md,
                                 dataset_name=uploaded_file.name,

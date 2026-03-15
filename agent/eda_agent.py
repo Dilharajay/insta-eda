@@ -43,13 +43,14 @@ def _collect_tool_results() -> str:
     return "\n\n".join(sections)
 
 
-def run_eda(df, api_key: str = None) -> str:
+def run_eda(df, api_key: str = None, model_name: str = "gemini-1.5-flash") -> str:
     """
     Main entry point. Runs all EDA tools then calls Gemini once to write the report.
 
     Args:
         df: A pandas DataFrame.
         api_key: Optional Google API key string.
+        model_name: The name of the Gemini model to use.
 
     Returns:
         Markdown report string.
@@ -63,7 +64,7 @@ def run_eda(df, api_key: str = None) -> str:
     tool_results = _collect_tool_results()
 
     llm = ChatGoogleGenerativeAI(
-        model="gemini-1.5-flash",
+        model=model_name,
         temperature=0.3,
         google_api_key=key,
     )
