@@ -20,30 +20,30 @@ from agent.tools import (
     get_ml_recommendation,
 )
 
-def _collect_tool_results() -> str:
-    """Runs all 7 EDA tools directly and returns their combined output as a string."""
+def _collect_tool_results_raw() -> dict:
+    """Runs all 7 EDA tools directly and returns their results as a dictionary."""
     tools = [
-        ("Data Shape & Dtypes",      get_data_shape),
-        ("Missing Values",           get_missing_values),
-        ("Descriptive Statistics",   get_descriptive_stats),
-        ("Outlier Detection",        get_outlier_detection),
-        ("Correlation Analysis",     get_correlation_analysis),
-        ("Categorical Analysis",     get_categorical_analysis),
-        ("ML Recommendation",        get_ml_recommendation),
+        ("data_shape",           get_data_shape),
+        ("missing_values",       get_missing_values),
+        ("descriptive_stats",    get_descriptive_stats),
+        ("outlier_detection",    get_outlier_detection),
+        ("correlation_analysis", get_correlation_analysis),
+        ("categorical_analysis", get_categorical_analysis),
+        ("ml_recommendation",    get_ml_recommendation),
     ]
 
-    sections = []
-    for label, tool in tools:
+    results = {}
+    for key, tool in tools:
         try:
             result = tool.invoke("")
-            sections.append(f"### {label}\n{result}")
+            results[key] = result
         except Exception as e:
-            sections.append(f"### {label}\nError: {e}")
+            results[key] = f"Error: {e}"
 
-    return "\n\n".join(sections)
+    return results
 
 
-def run_eda(df, api_key: str = None, model_name: str = "gemini-1.5-flash") -> str:
+def run_eda(df, api_key: str = None, model_name: str = "gemini-1.5-flash") -> dict:
     """
     Main entry point. Runs all EDA tools then calls Gemini once to write the report.
 
@@ -53,7 +53,7 @@ def run_eda(df, api_key: str = None, model_name: str = "gemini-1.5-flash") -> st
         model_name: The name of the Gemini model to use.
 
     Returns:
-        Markdown report string.
+        Dictionary containing 'report' (str) and 'raw_results' (dict).
     """
     key = api_key or os.getenv("GOOGLE_API_KEY")
     if not key:
@@ -61,7 +61,14 @@ def run_eda(df, api_key: str = None, model_name: str = "gemini-1.5-flash") -> st
 
     load_dataframe(df)
 
-    tool_results = _collect_tool_results()
+    raw_results = _collect_tool_results_raw()
+
+    # Format results for Gemini
+    formatted_sections = []
+    for key_label, result in raw_results.items():
+        formatted_sections.append(f"### {key_label.replace('_', ' ').title()}\n{result}")
+
+    tool_results_str = "\n\n".join(formatted_sections)
 
     llm = ChatGoogleGenerativeAI(
         model=model_name,
@@ -71,7 +78,10 @@ def run_eda(df, api_key: str = None, model_name: str = "gemini-1.5-flash") -> st
 
     response = llm.invoke([
         SystemMessage(content=SYSTEM_PROMPT),
-        HumanMessage(content=f"Here are the EDA tool results:\n\n{tool_results}\n\nNow write the full report."),
+        HumanMessage(content=f"Here are the EDA tool results:\n\n{tool_results_str}\n\nNow write the full report."),
     ])
 
-    return response.content
+    return {
+        "report": response.content,
+        "raw_results": raw_results
+    }
