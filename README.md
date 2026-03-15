@@ -1,45 +1,45 @@
-# InstaEDA
+# ⚡ InstaEDA
 
-> Drop in a CSV. Get a full EDA report written by an AI agent.
+> Drop in a CSV. Get a full EDA report + AI-recommended visuals — powered by Gemini.
 
-InstaEDA is a LangChain-powered agent that autonomously runs Exploratory Data Analysis on any CSV dataset and produces a clean, human-readable Markdown report — complete with statistical insights, outlier flags, feature correlations, and ML pipeline recommendations.
+InstaEDA is a LangChain-powered agent that autonomously runs Exploratory Data Analysis on any CSV dataset. It produces a clean, human-readable Markdown report and an interactive dashboard with AI-selected visualizations tailored to your specific data.
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
-![LangChain](https://img.shields.io/badge/LangChain-0.3%2B-green)
+![Python](https://img.shields.io/badge/Python-3.12%2B-blue)
+![LangChain](https://img.shields.io/badge/LangChain-1.2.12%2B-green)
 ![Streamlit](https://img.shields.io/badge/UI-Streamlit-red)
+![Plotly](https://img.shields.io/badge/Visuals-Plotly-orange)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
-
----
-
-## Demo
-
-Upload any CSV → agent calls 7 EDA tools in sequence → full report generated in ~30–60 seconds.
 
 ---
 
 ## Features
 
-- **7 autonomous EDA tools** — shape, nulls, stats, outliers, correlations, categoricals, ML hints
-- **LLM-written narrative** — not just numbers, but interpreted insights
-- **Streamlit UI** — drag-and-drop CSV, download report as `.md`
-- **ML recommendations** — problem type detection + starter sklearn pipeline
-- **Works with any CSV** — no schema assumptions
+- **7 autonomous EDA tools** — shape, nulls, stats, outliers, correlations, categoricals, ML hints.
+- **AI-Driven Visuals** — Gemini identifies the most important insights and recommends specific Plotly charts.
+- **Dynamic Feature Selection** — Automatically excludes identifiers (IDs, UUIDs) and noise from plots to focus on real data.
+- **User Authentication** — Secure login/signup system with password hashing (`bcrypt`).
+- **Persistent Settings** — Securely save your Google API key to your account so you don't have to re-enter it.
+- **Model Selection** — Choose between different Gemini models (e.g., `gemini-3.1-pro`, `gemini-1.5-flash`) in the settings.
+- **Interactive Dashboard** — Explore your data visually with zoomable, filterable Plotly charts.
+- **ML Recommendations** — Problem type detection + starter sklearn pipeline.
 
 ---
 
 ## Project Structure
 
 ```
-datnarrator/
+insta-eda/
 ├── app.py                      # Streamlit UI (entry point)
 ├── agent/
-│   ├── eda_agent.py            # LangChain agent + executor
+│   ├── config.py               # AI instructions & prompt templates
+│   ├── eda_agent.py            # LangChain executor & result parser
 │   └── tools.py                # 7 custom pandas EDA tools
 ├── utils/
+│   ├── auth.py                 # SQLite + bcrypt authentication logic
 │   └── report.py               # Report saving + metadata injection
-├── sample_data/
-│   └── employee_sample.csv     # Sample dataset for testing
-└── requirements.txt
+├── sample_data/                # Sample datasets for testing
+├── instaeda.db                 # SQLite database (auto-generated)
+└── pyproject.toml              # Project dependencies (uv/pip)
 ```
 
 ---
@@ -49,92 +49,40 @@ datnarrator/
 ### 1. Clone the repo
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/datnarrator.git
-cd datnarrator
+git clone https://github.com/YOUR_USERNAME/insta-eda.git
+cd insta-eda
 ```
 
 ### 2. Install dependencies
 
 ```bash
-pip install -r requirements.txt
+pip install .
+# or using uv
+uv sync
 ```
 
-### 3. Set your google API key
-
-```bash
-export GOOGLE_API_KEY="AIza..."
-```
-
-Or enter it directly in the Streamlit sidebar. Get a free key at [aistudio.google.com](https://aistudio.google.com).
-
-### 4. Run the app
+### 3. Run the app
 
 ```bash
 streamlit run app.py
 ```
 
+### 4. Setup
+
+1. **Sign Up / Login** in the sidebar.
+2. Go to the **Settings** tab.
+3. Enter your **Google API Key** and click **Save API Key**. Get a free key at [aistudio.google.com](https://aistudio.google.com).
+4. Choose your preferred **Gemini Model**.
+
 ---
 
 ## How It Works
 
-The agent follows a ReAct-style tool calling loop:
-
-```
-User uploads CSV
-       │
-       ▼
-  load_dataframe()          ← registers df in global state
-       │
-       ▼
-  LangChain Agent starts
-       │
-       ├── get_data_shape()
-       ├── get_missing_values()
-       ├── get_descriptive_stats()
-       ├── get_outlier_detection()
-       ├── get_correlation_analysis()
-       ├── get_categorical_analysis()
-       └── get_ml_recommendation()
-       │
-       ▼
-  LLM synthesizes all tool outputs
-       │
-       ▼
-  Markdown report returned to UI
-```
-
----
-
-## Use It Without the UI
-
-```python
-import pandas as pd
-from agent.eda_agent import run_eda
-
-df = pd.read_csv("your_data.csv")
-report = run_eda(df, api_key="AIza...")
-print(report)
-```
-
----
-
-## Extending DataNarrator
-
-Adding a new tool is straightforward:
-
-```python
-# agent/tools.py
-from langchain_core.tools import tool
-
-@tool
-def get_skewness_analysis(input: str = "") -> str:
-    """Returns skewness scores for all numeric columns."""
-    df = _require_df()
-    skew = df.select_dtypes(include='number').skew().round(4).to_dict()
-    return json.dumps(skew, indent=2)
-```
-
-Then add it to `EDA_TOOLS` in `eda_agent.py`. That is all.
+1. **User Uploads CSV:** The file is parsed and registered in the agent's global state.
+2. **Autonomous Tool Execution:** The system runs all 7 EDA tools to gather raw data.
+3. **LLM Analysis:** Gemini reviews the tool outputs, writes the narrative report, and **selects the best features** for visualization while filtering out noise (like IDs).
+4. **Interactive Rendering:** The UI dynamically builds a Plotly dashboard based on the AI's specific recommendations for *that* dataset.
+5. **Report Delivery:** You can download the full Markdown report for your documentation.
 
 ---
 
@@ -142,11 +90,13 @@ Then add it to `EDA_TOOLS` in `eda_agent.py`. That is all.
 
 | Component | Library |
 |---|---|
-| Agent framework | LangChain 0.3 |
-| LLM | Google Gemini 1.5 Flash |
+| Agent framework | LangChain 1.2+ |
+| LLM | Google Gemini (selectable) |
 | Data analysis | pandas, numpy |
+| Visualizations | Plotly Express |
 | UI | Streamlit |
-| Tool protocol | LangChain `@tool` decorator |
+| Database | SQLite3 |
+| Security | bcrypt (Password Hashing) |
 
 ---
 
