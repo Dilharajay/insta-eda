@@ -64,7 +64,7 @@ def get_missing_values(input: str = "") -> str:
             result[col] = {
                 "missing_count": int(missing[col]),
                 "missing_percent": float(pct[col]),
-                "concern": pct[col] > 5,
+                "concern": bool(pct[col] > 5),
             }
 
     if not result:
@@ -183,7 +183,7 @@ def get_categorical_analysis(input: str = "") -> str:
         vc = df[col].value_counts()
         result[col] = {
             "unique_values": int(df[col].nunique()),
-            "high_cardinality": df[col].nunique() > 20,
+            "high_cardinality": bool(df[col].nunique() > 20),
             "top_5_values": vc.head(5).to_dict(),
         }
 
