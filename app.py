@@ -14,22 +14,23 @@ from utils.report import save_report, inject_metadata
 # Page Config
 # ─────────────────────────────────────────────
 st.set_page_config(
-    page_title="DataNarrator",
+    page_title="InstaEDA",
+    page_icon="⚡",
     layout="wide",
 )
 
 # ─────────────────────────────────────────────
 # Header
 # ─────────────────────────────────────────────
-st.title("DataNarrator")
-st.caption("Drop in a CSV. Get a full EDA report written by an AI agent.")
+st.title("⚡ InstaEDA")
+st.caption("Drop in a CSV. Get a full EDA report instantly — powered by Gemini.")
 st.divider()
 
 # ─────────────────────────────────────────────
 # Sidebar — API Key + Settings
 # ─────────────────────────────────────────────
 with st.sidebar:
-    st.header("Settings")
+    st.header("⚙️ Settings")
     api_key = st.text_input(
         "Google API Key",
         type="password",
@@ -37,11 +38,11 @@ with st.sidebar:
         help="Your key is never stored or logged. Get one at aistudio.google.com",
     )
     st.markdown("---")
-    st.markdown("**Model:** gemini-1.5-flash")
+    st.markdown("**Model:** gemini-2.5-flash")
     st.markdown("**Tools used:** 7 EDA tools")
     st.markdown("**Output:** Markdown report")
     st.markdown("---")
-    st.caption("DataNarrator v1.0 · Built with LangChain")
+    st.caption("InstaEDA v1.0 · Built with LangChain + Gemini")
 
 # ─────────────────────────────────────────────
 # File Upload
@@ -92,12 +93,12 @@ if uploaded_file:
 # ─────────────────────────────────────────────
 if "report" in st.session_state:
     st.divider()
-    st.subheader("EDA Report")
+    st.subheader("📄 EDA Report")
 
     col1, col2 = st.columns([4, 1])
     with col2:
         st.download_button(
-            label="⬇Download .md",
+            label="⬇️ Download .md",
             data=st.session_state["report"],
             file_name=f"eda_{st.session_state['dataset_name'].replace('.csv','')}.md",
             mime="text/markdown",
@@ -110,7 +111,7 @@ if "report" in st.session_state:
 # ─────────────────────────────────────────────
 else:
     st.info("Upload a CSV file above to get started.")
-    with st.expander("What does DataNarrator analyze?"):
+    with st.expander("💡 What does DataNarrator analyze?"):
         st.markdown("""
 - **Dataset shape** — rows, columns, dtypes
 - **Missing values** — per-column null analysis with severity flags

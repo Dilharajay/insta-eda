@@ -1,14 +1,15 @@
 """
-DataNarrator — LangChain EDA Agent
-Uses LangGraph's create_react_agent (compatible with LangChain 1.x+)
+InstaEDA — EDA Pipeline
+Runs all 7 tools directly in Python, then sends results to Gemini
+in a single LLM call to write the report. No agent loop — 1 API call per run.
 """
 
 import os
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.agents import create_agent
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 
 from agent.tools import (
+    load_dataframe,
     get_data_shape,
     get_missing_values,
     get_descriptive_stats,
@@ -18,37 +19,13 @@ from agent.tools import (
     get_ml_recommendation,
 )
 
-# All tools the agent can use
-EDA_TOOLS = [
-    get_data_shape,
-    get_missing_values,
-    get_descriptive_stats,
-    get_outlier_detection,
-    get_correlation_analysis,
-    get_categorical_analysis,
-    get_ml_recommendation,
-]
+SYSTEM_PROMPT = """You are InstaEDA, an expert data scientist and analyst.
+You will be given the raw output of 7 EDA analysis tools run on a dataset.
+Your job is to interpret these results and write a clean, insightful Markdown report.
 
-SYSTEM_PROMPT = """
-You are DataNarrator, an expert data scientist and analyst.
-Your job is to perform a complete Exploratory Data Analysis (EDA) on a dataset
-and produce a well-structured, human-readable Markdown report.
+Write the report with these exact sections:
 
-You have access to a set of tools. Use ALL of them in sequence to gather every
-piece of information you need before writing the report.
-
-Tool calling order:
-1. get_data_shape          — understand the structure
-2. get_missing_values      — check data quality
-3. get_descriptive_stats   — summarize numeric features
-4. get_outlier_detection   — flag anomalies
-5. get_correlation_analysis — find feature relationships
-6. get_categorical_analysis — understand text/category columns
-7. get_ml_recommendation   — suggest ML problem type and pipeline
-
-After calling all tools, write a Markdown report with these exact sections:
-
-# DataNarrator EDA Report
+# InstaEDA Report
 
 ## 1. Dataset Overview
 ## 2. Data Quality Assessment
@@ -59,49 +36,38 @@ After calling all tools, write a Markdown report with these exact sections:
 ## 7. ML Recommendations & Starter Pipeline
 ## 8. Key Takeaways
 
-Be specific, insightful, and actionable. Write like a senior data scientist
-presenting findings to a team. Use bullet points, bold key terms, and tables
-where helpful. Do NOT just repeat raw numbers — interpret them.
+Be specific and actionable. Write like a senior data scientist presenting to a team.
+Use bullet points and bold key terms where helpful.
+Do NOT just repeat the raw numbers — interpret and explain what they mean.
 """
 
-USER_PROMPT = (
-    "Please perform a complete EDA on the loaded dataset. "
-    "Use all available tools, then write the full Markdown report."
-)
+
+def _collect_tool_results() -> str:
+    """Runs all 7 EDA tools directly and returns their combined output as a string."""
+    tools = [
+        ("Data Shape & Dtypes",      get_data_shape),
+        ("Missing Values",           get_missing_values),
+        ("Descriptive Statistics",   get_descriptive_stats),
+        ("Outlier Detection",        get_outlier_detection),
+        ("Correlation Analysis",     get_correlation_analysis),
+        ("Categorical Analysis",     get_categorical_analysis),
+        ("ML Recommendation",        get_ml_recommendation),
+    ]
+
+    sections = []
+    for label, tool in tools:
+        try:
+            result = tool.invoke("")
+            sections.append(f"### {label}\n{result}")
+        except Exception as e:
+            sections.append(f"### {label}\nError: {e}")
+
+    return "\n\n".join(sections)
 
 
-def build_agent(api_key: str):
+def run_eda(df, api_key: str = None) -> str:
     """
-    Builds and returns the LangGraph react agent.
-
-    Args:
-        api_key: Google API key. Falls back to GOOGLE_API_KEY env var.
-
-    Returns:
-        A compiled LangGraph agent.
-    """
-    key = api_key or os.getenv("GOOGLE_API_KEY")
-    if not key:
-        raise ValueError("Google API key required. Set GOOGLE_API_KEY or pass api_key.")
-
-    llm = ChatGoogleGenerativeAI(
-        model="gemini-2.0-flash",
-        temperature=0.3,
-        google_api_key=key,
-    )
-
-    agent = create_agent(
-        model=llm,
-        tools=EDA_TOOLS,
-        system_prompt=SYSTEM_PROMPT,
-    )
-
-    return agent
-
-
-def run_eda(df, api_key: str) -> str:
-    """
-    Main entry point. Loads the dataframe and runs the full EDA pipeline.
+    Main entry point. Runs all EDA tools then calls Gemini once to write the report.
 
     Args:
         df: A pandas DataFrame.
@@ -110,19 +76,23 @@ def run_eda(df, api_key: str) -> str:
     Returns:
         Markdown report string.
     """
-    from agent.tools import load_dataframe
+    key = api_key or os.getenv("GOOGLE_API_KEY")
+    if not key:
+        raise ValueError("Google API key required. Set GOOGLE_API_KEY or pass api_key.")
+
     load_dataframe(df)
 
-    agent = build_agent(api_key=api_key)
+    tool_results = _collect_tool_results()
 
-    result = agent.invoke({
-        "messages": [HumanMessage(content=USER_PROMPT)]
-    })
+    llm = ChatGoogleGenerativeAI(
+        model="gemini-2.5-flash",
+        temperature=0.3,
+        google_api_key=key,
+    )
 
-    # The final AI message contains the written report
-    messages = result.get("messages", [])
-    for msg in reversed(messages):
-        if hasattr(msg, "content") and isinstance(msg.content, str) and len(msg.content) > 100:
-            return msg.content
+    response = llm.invoke([
+        SystemMessage(content=SYSTEM_PROMPT),
+        HumanMessage(content=f"Here are the EDA tool results:\n\n{tool_results}\n\nNow write the full report."),
+    ])
 
-    return "Agent completed but returned no report. Check your API key and try again."
+    return response.content
