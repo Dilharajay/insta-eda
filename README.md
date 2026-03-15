@@ -58,7 +58,7 @@ insta-eda/
 ### 1. Clone the repo
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/insta-eda.git
+git clone https://github.com/dilharajay/insta-eda.git
 cd insta-eda
 ```
 
