@@ -291,7 +291,9 @@ with tab_run:
                     # Filter tool_data if columns are specified
                     if selected_cols and isinstance(tool_data, dict):
                         tool_data = {k: v for k, v in tool_data.items() if k in selected_cols}
-                        if not tool_data: continue
+                        if not tool_data: 
+                            st.warning(f"AI requested columns {selected_cols} but they weren't found in tool results.")
+                            continue
 
                     st.write(f"### {title}")
                     if description:
