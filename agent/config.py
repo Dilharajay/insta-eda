@@ -26,9 +26,18 @@ The JSON should be a list of objects with this structure:
     "chart_type": "bar" | "pie" | "heatmap" | "scatter" | "histogram",
     "title": "Clear Chart Title",
     "description": "Why this chart is important for this dataset",
-    "params": { ... depends on the tool ... }
+    "params": { 
+      "columns": ["list", "of", "relevant", "columns"],
+      "reasoning": "Briefly why these specific columns were chosen (e.g., 'Excluding IDs and high-cardinality noise')"
+    }
   }
 ]
+
+CRITICAL: Dynamic Feature Selection
+- Analyze the column names and data types.
+- EXCLUDE identifier columns (e.g., 'id', 'user_id', 'uuid'), timestamps (unless relevant for time series), and redundant features from visual plots.
+- For 'categorical_analysis', choose 2-3 most impactful features that show interesting distributions.
+- For 'outlier_detection', only plot columns where outliers are statistically significant or concerning.
 
 Be specific and actionable. Write like a senior data scientist presenting to a team.
 Use bullet points and bold key terms where helpful.

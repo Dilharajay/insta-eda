@@ -223,15 +223,25 @@ with tab_run:
                 chart_type = config.get("chart_type")
                 title = config.get("title", "Insight Chart")
                 description = config.get("description", "")
+                params = config.get("params", {})
+                selected_cols = params.get("columns", [])
+                reasoning = params.get("reasoning", "")
                 
                 try:
                     tool_data = json.loads(raw[tool_key]) if tool_key in raw and isinstance(raw[tool_key], str) else raw.get(tool_key)
                     if not tool_data or (isinstance(tool_data, str) and tool_data.startswith("No")):
                         continue
 
+                    # Filter tool_data if columns are specified
+                    if selected_cols and isinstance(tool_data, dict):
+                        tool_data = {k: v for k, v in tool_data.items() if k in selected_cols}
+                        if not tool_data: continue
+
                     st.write(f"### {title}")
                     if description:
                         st.caption(description)
+                    if reasoning:
+                        st.info(f"**AI Reasoning:** {reasoning}")
 
                     if tool_key == "missing_values":
                         mv_df = pd.DataFrame.from_dict(tool_data, orient='index').reset_index()
@@ -249,18 +259,18 @@ with tab_run:
 
                     elif tool_key == "correlation_analysis":
                         corr_df = pd.DataFrame(tool_data)
-                        if chart_type == "heatmap" or chart_type == "bar":
+                        if selected_cols:
+                            corr_df = corr_df[corr_df['feature_a'].isin(selected_cols) | corr_df['feature_b'].isin(selected_cols)]
+                        
+                        if not corr_df.empty:
                             fig = px.bar(corr_df, x='correlation', y='feature_a', color='feature_b',
                                          orientation='h', title=title)
                             st.plotly_chart(fig, use_container_width=True)
 
                     elif tool_key == "categorical_analysis":
-                        # For categorical, we might have multiple columns. AI might specify which one in params, 
-                        # but for now let's show all or first 3
                         cols = st.columns(min(len(tool_data), 3))
                         for i, (col_name, info) in enumerate(tool_data.items()):
-                            if i >= 3: break 
-                            with cols[i]:
+                            with cols[i % 3]:
                                 top_v = pd.DataFrame.from_dict(info['top_5_values'], orient='index').reset_index()
                                 top_v.columns = ['Value', 'Count']
                                 fig = px.pie(top_v, names='Value', values='Count', title=f"{col_name}")
@@ -269,8 +279,12 @@ with tab_run:
                     elif tool_key == "descriptive_stats":
                         stats_df = pd.DataFrame(tool_data).T.reset_index()
                         stats_df.columns = ['Feature', 'count', 'mean', 'std', 'min', '25%', '50%', '75%', 'max']
-                        fig = px.bar(stats_df, x='Feature', y='mean', error_y='std', title=title)
-                        st.plotly_chart(fig, use_container_width=True)
+                        if selected_cols:
+                            stats_df = stats_df[stats_df['Feature'].isin(selected_cols)]
+                        
+                        if not stats_df.empty:
+                            fig = px.bar(stats_df, x='Feature', y='mean', error_y='std', title=title)
+                            st.plotly_chart(fig, use_container_width=True)
 
                 except Exception as e:
                     pass
