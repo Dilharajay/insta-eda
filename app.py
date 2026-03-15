@@ -25,7 +25,7 @@ st.set_page_config(
 # Header
 # ─────────────────────────────────────────────
 st.title("⚡ InstaEDA")
-st.caption("Drop in a CSV. Get a full EDA report + interactive visuals instantly — powered by Gemini.")
+st.caption("Drop in a CSV. Get a full EDA report + AI-recommended visuals — powered by Gemini.")
 st.divider()
 
 # ─────────────────────────────────────────────
@@ -78,7 +78,7 @@ with tab_settings:
     st.divider()
     st.markdown(f"**Current Model:** `{model_name}`")
     st.markdown("**Tools:** 7 automated EDA tools")
-    st.markdown("**Visuals:** Plotly Interactive Charts")
+    st.markdown("**AI Visuals:** Smart Chart Selection")
     st.markdown("**Output:** Markdown report with ML recommendations")
 
 with tab_run:
@@ -97,6 +97,8 @@ with tab_run:
                 del st.session_state["report"]
             if "raw_results" in st.session_state:
                 del st.session_state["raw_results"]
+            if "viz_configs" in st.session_state:
+                del st.session_state["viz_configs"]
 
         try:
             df = pd.read_csv(uploaded_file)
@@ -119,6 +121,7 @@ with tab_run:
                             result_data = run_eda(df, api_key=api_key, model_name=model_name)
                             report_md = result_data["report"]
                             raw_results = result_data["raw_results"]
+                            viz_configs = result_data["viz_configs"]
 
                             report_md = inject_metadata(
                                 report_md,
@@ -129,6 +132,7 @@ with tab_run:
 
                             st.session_state["report"] = report_md
                             st.session_state["raw_results"] = raw_results
+                            st.session_state["viz_configs"] = viz_configs
                             st.session_state["dataset_name"] = uploaded_file.name
 
                         except Exception as e:
@@ -143,7 +147,7 @@ with tab_run:
     if "report" in st.session_state and "raw_results" in st.session_state:
         st.divider()
         
-        viz_tab, report_tab = st.tabs(["📊 Interactive Visuals", "📄 Markdown Report"])
+        viz_tab, report_tab = st.tabs(["📊 AI-Recommended Visuals", "📄 Markdown Report"])
 
         with report_tab:
             st.subheader("📄 EDA Report")
@@ -158,61 +162,79 @@ with tab_run:
             st.markdown(st.session_state["report"])
 
         with viz_tab:
-            st.subheader("📊 Data Exploration Dashboard")
+            st.subheader("📊 Data Exploration Dashboard (AI-Selected)")
             raw = st.session_state["raw_results"]
+            viz_configs = st.session_state.get("viz_configs", [])
             
-            # 1. Missing Values Chart
-            try:
-                mv_data = json.loads(raw["missing_values"])
-                if isinstance(mv_data, dict):
-                    mv_df = pd.DataFrame.from_dict(mv_data, orient='index').reset_index()
-                    mv_df.columns = ['Column', 'Missing Count', 'Percent', 'Concern']
-                    fig_mv = px.bar(mv_df, x='Column', y='Percent', color='Concern', 
-                                   title="Missing Values (%) by Column",
-                                   color_discrete_map={True: '#ef553b', False: '#636efa'})
-                    st.plotly_chart(fig_mv, use_container_width=True)
-                else:
-                    st.info("No missing values detected.")
-            except: pass
+            if not viz_configs:
+                st.info("Gemini didn't recommend specific visuals for this dataset. Here is the default analysis.")
+                # Fallback to default visuals
+                viz_configs = [
+                    {"tool": "missing_values", "chart_type": "bar", "title": "Missing Values Overview"},
+                    {"tool": "outlier_detection", "chart_type": "bar", "title": "Outlier Counts"},
+                    {"tool": "correlation_analysis", "chart_type": "heatmap", "title": "Top Correlations"},
+                    {"tool": "categorical_analysis", "chart_type": "pie", "title": "Categorical Distributions"}
+                ]
 
-            # 2. Outlier Analysis
-            try:
-                out_data = json.loads(raw["outlier_detection"])
-                if isinstance(out_data, dict):
-                    out_df = pd.DataFrame.from_dict(out_data, orient='index').reset_index()
-                    out_df.columns = ['Column', 'Outlier Count', 'Percent', 'Lower', 'Upper']
-                    fig_out = px.bar(out_df, x='Column', y='Outlier Count', 
-                                    title="Outlier Count by Column",
-                                    color_discrete_sequence=['#ab63fa'])
-                    st.plotly_chart(fig_out, use_container_width=True)
-                else:
-                    st.info("No outliers detected.")
-            except: pass
+            for config in viz_configs:
+                tool_key = config.get("tool")
+                chart_type = config.get("chart_type")
+                title = config.get("title", "Insight Chart")
+                description = config.get("description", "")
+                
+                try:
+                    tool_data = json.loads(raw[tool_key]) if tool_key in raw and isinstance(raw[tool_key], str) else raw.get(tool_key)
+                    if not tool_data or (isinstance(tool_data, str) and tool_data.startswith("No")):
+                        continue
 
-            # 3. Categorical Distribution (Top 1)
-            try:
-                cat_data = json.loads(raw["categorical_analysis"])
-                if isinstance(cat_data, dict):
-                    st.write("#### Categorical Distributions (Top 5 Values)")
-                    cols = st.columns(min(len(cat_data), 3))
-                    for i, (col_name, info) in enumerate(cat_data.items()):
-                        with cols[i % 3]:
-                            top_v = pd.DataFrame.from_dict(info['top_5_values'], orient='index').reset_index()
-                            top_v.columns = ['Value', 'Count']
-                            fig_cat = px.pie(top_v, names='Value', values='Count', title=f"{col_name}")
-                            st.plotly_chart(fig_cat, use_container_width=True)
-            except: pass
+                    st.write(f"### {title}")
+                    if description:
+                        st.caption(description)
 
-            # 4. Correlation Heatmap (Top pairs)
-            try:
-                corr_data = json.loads(raw["correlation_analysis"])
-                if isinstance(corr_data, list):
-                    corr_df = pd.DataFrame(corr_data)
-                    fig_corr = px.bar(corr_df, x='correlation', y='feature_a', color='feature_b',
-                                     orientation='h', title="Top Feature Correlations",
-                                     labels={'feature_a': 'Feature A', 'correlation': 'Correlation Coefficient'})
-                    st.plotly_chart(fig_corr, use_container_width=True)
-            except: pass
+                    if tool_key == "missing_values":
+                        mv_df = pd.DataFrame.from_dict(tool_data, orient='index').reset_index()
+                        mv_df.columns = ['Column', 'Missing Count', 'Percent', 'Concern']
+                        fig = px.bar(mv_df, x='Column', y='Percent', color='Concern', 
+                                   title=title, color_discrete_map={True: '#ef553b', False: '#636efa'})
+                        st.plotly_chart(fig, use_container_width=True)
+
+                    elif tool_key == "outlier_detection":
+                        out_df = pd.DataFrame.from_dict(tool_data, orient='index').reset_index()
+                        out_df.columns = ['Column', 'Outlier Count', 'Percent', 'Lower', 'Upper']
+                        fig = px.bar(out_df, x='Column', y='Outlier Count', 
+                                    title=title, color_discrete_sequence=['#ab63fa'])
+                        st.plotly_chart(fig, use_container_width=True)
+
+                    elif tool_key == "correlation_analysis":
+                        corr_df = pd.DataFrame(tool_data)
+                        if chart_type == "heatmap" or chart_type == "bar":
+                            fig = px.bar(corr_df, x='correlation', y='feature_a', color='feature_b',
+                                         orientation='h', title=title)
+                            st.plotly_chart(fig, use_container_width=True)
+
+                    elif tool_key == "categorical_analysis":
+                        # For categorical, we might have multiple columns. AI might specify which one in params, 
+                        # but for now let's show all or first 3
+                        cols = st.columns(min(len(tool_data), 3))
+                        for i, (col_name, info) in enumerate(tool_data.items()):
+                            if i >= 3: break 
+                            with cols[i]:
+                                top_v = pd.DataFrame.from_dict(info['top_5_values'], orient='index').reset_index()
+                                top_v.columns = ['Value', 'Count']
+                                fig = px.pie(top_v, names='Value', values='Count', title=f"{col_name}")
+                                st.plotly_chart(fig, use_container_width=True)
+
+                    elif tool_key == "descriptive_stats":
+                        # Descriptive stats are hard to visualize as a single chart without more context,
+                        # but we can show a bar chart of means or std devs if AI asks.
+                        stats_df = pd.DataFrame(tool_data).T.reset_index()
+                        stats_df.columns = ['Feature', 'count', 'mean', 'std', 'min', '25%', '50%', '75%', 'max']
+                        fig = px.bar(stats_df, x='Feature', y='mean', error_y='std', title=title)
+                        st.plotly_chart(fig, use_container_width=True)
+
+                except Exception as e:
+                    # Silently skip errors for individual charts
+                    pass
 
     elif not uploaded_file:
         st.info("Upload a CSV file above to get started.")

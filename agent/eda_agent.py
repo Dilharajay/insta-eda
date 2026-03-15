@@ -5,6 +5,8 @@ in a single LLM call to write the report. No agent loop — 1 API call per run.
 """
 
 import os
+import re
+import json
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, SystemMessage
 from agent.config import SYSTEM_PROMPT
@@ -81,7 +83,22 @@ def run_eda(df, api_key: str = None, model_name: str = "gemini-1.5-flash") -> di
         HumanMessage(content=f"Here are the EDA tool results:\n\n{tool_results_str}\n\nNow write the full report."),
     ])
 
+    report_content = response.content
+    viz_configs = []
+
+    # Try to extract JSON from the report
+    try:
+        json_pattern = r'\[\s*\{.*\}\s*\]' # Matches a JSON array
+        match = re.search(json_pattern, report_content, re.DOTALL)
+        if match:
+            json_str = match.group(0)
+            viz_configs = json.loads(json_str)
+    except Exception as e:
+        # Fallback to an empty list if JSON parsing fails
+        pass
+
     return {
-        "report": response.content,
-        "raw_results": raw_results
+        "report": report_content,
+        "raw_results": raw_results,
+        "viz_configs": viz_configs
     }
