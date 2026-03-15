@@ -16,8 +16,11 @@ InstaEDA is a LangChain-powered agent that autonomously runs Exploratory Data An
 
 - **7 autonomous EDA tools** — shape, nulls, stats, outliers, correlations, categoricals, ML hints.
 - **AI-Driven Visuals** — Gemini identifies the most important insights and recommends specific Plotly charts.
+- **Analysis History** — Automatically saves every report to your account for later retrieval.
+- **Interactive Dashboard** — Load past analyses instantly from the sidebar.
 - **Dynamic Feature Selection** — Automatically excludes identifiers (IDs, UUIDs) and noise from plots to focus on real data.
 - **User Authentication** — Secure login/signup system with password hashing (`bcrypt`).
+- **Account Management** — Change your username or password directly from the dashboard.
 - **Persistent Settings** — Securely save your Google API key to your account so you don't have to re-enter it.
 - **Model Selection** — Choose between different Gemini models (e.g., `gemini-3.1-pro`, `gemini-1.5-flash`) in the settings.
 - **Interactive Dashboard** — Explore your data visually with zoomable, filterable Plotly charts.

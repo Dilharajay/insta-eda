@@ -11,7 +11,12 @@ import plotly.express as px
 
 from agent.eda_agent import run_eda
 from utils.report import save_report, inject_metadata
-from utils.auth import init_db, register_user, authenticate_user, save_api_key, get_api_key
+from utils.auth import (
+    init_db, register_user, authenticate_user, 
+    save_api_key, get_api_key, save_report_to_db, 
+    get_user_reports, delete_report, update_username, 
+    update_password
+)
 
 # ─────────────────────────────────────────────
 # Initialization
@@ -62,6 +67,29 @@ with st.sidebar:
             st.session_state["username"] = None
             st.rerun()
 
+        st.divider()
+        st.header("📜 Analysis History")
+        reports = get_user_reports(st.session_state["username"])
+        if reports:
+            report_options = {f"{r[1]} ({r[5]})": r for r in reports}
+            selected_report_label = st.selectbox("Select a past report", ["Select..."] + list(report_options.keys()))
+            
+            if selected_report_label != "Select...":
+                report_data = report_options[selected_report_label]
+                if st.button("📂 Load Report", use_container_width=True):
+                    st.session_state["report"] = report_data[2]
+                    st.session_state["raw_results"] = json.loads(report_data[3])
+                    st.session_state["viz_configs"] = json.loads(report_data[4])
+                    st.session_state["dataset_name"] = report_data[1]
+                    st.success(f"Loaded {report_data[1]}")
+                
+                if st.button("🗑️ Delete Report", use_container_width=True):
+                    delete_report(report_data[0])
+                    st.success("Deleted report.")
+                    st.rerun()
+        else:
+            st.caption("No past analyses found.")
+
     st.divider()
     st.header("⚡ InstaEDA v1.0")
     st.caption("Built with LangChain + Gemini + Plotly")
@@ -81,8 +109,27 @@ if not st.session_state["authenticated"]:
 # Main Application Flow
 # ─────────────────────────────────────────────
 
-# Tabs — Run and Settings
-tab_run, tab_settings = st.tabs(["🚀 Analysis", "⚙️ Settings"])
+# Tabs — Run, Settings, and Account
+tab_run, tab_settings, tab_account = st.tabs(["🚀 Analysis", "⚙️ API Settings", "👤 Account Management"])
+
+with tab_account:
+    st.header("👤 Account Management")
+    
+    with st.expander("Update Username"):
+        new_un = st.text_input("New Username", key="new_un")
+        if st.button("Change Username"):
+            if update_username(st.session_state["username"], new_un):
+                st.session_state["username"] = new_un
+                st.success("Username updated!")
+                st.rerun()
+            else:
+                st.error("Username already taken.")
+
+    with st.expander("Update Password"):
+        new_pw = st.text_input("New Password", type="password", key="new_pw")
+        if st.button("Change Password"):
+            update_password(st.session_state["username"], new_pw)
+            st.success("Password updated!")
 
 with tab_settings:
     st.header("⚙️ Configuration")
@@ -132,7 +179,7 @@ with tab_run:
     )
 
     if uploaded_file:
-        # Clear previous report if a new file is uploaded
+        # Clear current report if a NEW file is uploaded manually
         if "last_file" not in st.session_state or st.session_state["last_file"] != uploaded_file.name:
             st.session_state["last_file"] = uploaded_file.name
             if "report" in st.session_state:
@@ -176,6 +223,16 @@ with tab_run:
                             st.session_state["raw_results"] = raw_results
                             st.session_state["viz_configs"] = viz_configs
                             st.session_state["dataset_name"] = uploaded_file.name
+                            
+                            # SAVE TO DATABASE
+                            save_report_to_db(
+                                st.session_state["username"],
+                                uploaded_file.name,
+                                report_md,
+                                raw_results,
+                                viz_configs
+                            )
+                            st.success("Analysis complete and saved to history!")
 
                         except Exception as e:
                             st.error(f"Agent error: {e}")
@@ -198,7 +255,7 @@ with tab_run:
                 st.download_button(
                     label="⬇️ Download .md",
                     data=st.session_state["report"],
-                    file_name=f"eda_{st.session_state['dataset_name'].replace('.csv','')}.md",
+                    file_name=f"eda_{st.session_state.get('dataset_name', 'report').replace('.csv','')}.md",
                     mime="text/markdown",
                 )
             st.markdown(st.session_state["report"])
@@ -210,7 +267,6 @@ with tab_run:
             
             if not viz_configs:
                 st.info("Gemini didn't recommend specific visuals for this dataset. Here is the default analysis.")
-                # Fallback to default visuals
                 viz_configs = [
                     {"tool": "missing_values", "chart_type": "bar", "title": "Missing Values Overview"},
                     {"tool": "outlier_detection", "chart_type": "bar", "title": "Outlier Counts"},
